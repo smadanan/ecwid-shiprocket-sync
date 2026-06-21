@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecwid-Shiprocket Sync Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .status-card.success {
+            border-left: 4px solid #10b981;
+        }
+        
+        .status-card.error {
+            border-left: 4px solid #ef4444;
+        }
+        
+        .status-card.warning {
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .status-card.info {
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .status-card h3 {
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .status-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status-card.success .value {
+            color: #10b981;
+        }
+        
+        .status-card.error .value {
+            color: #ef4444;
+        }
+        
+        .status-card.warning .value {
+            color: #f59e0b;
+        }
+        
+        .status-card.info .value {
+            color: #3b82f6;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .logs-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .logs-container h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .logs-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 500px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log-entry.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+        }
+        
+        .log-entry.success {
+            background: rgba(16, 185, 129, 0.1);
+            color: #86efac;
+        }
+        
+        .log-entry.warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #fcd34d;
+        }
+        
+        .log-timestamp {
+            color: #888;
+            flex-shrink: 0;
+            min-width: 120px;
+        }
+        
+        .log-message {
+            flex-grow: 1;
+            word-break: break-word;
+        }
+        
+        .connection-status {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        .connection-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .connection-badge.connected {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .connection-badge.disconnected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .connection-badge.connected .status-dot {
+            background: #10b981;
+        }
+        
+        .connection-badge.disconnected .status-dot {
+            background: #ef4444;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        .alert.show {
+            display: block;
+        }
+        
+        .alert.success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        
+        .alert.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .alert.info {
+            background: #dbeafe;
+            color: #0c2d6b;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 Ecwid-Shiprocket Sync Dashboard</h1>
+            <p>Real-time order synchronization monitoring</p>
+            <div class="connection-status" id="connectionStatus" style="margin-top: 20px;">
+                <div class="connection-badge" id="ecwidStatus">
+                    <div class="status-dot"></div>
+                    <span>Checking Ecwid...</span>
+                </div>
+                <div class="connection-badge" id="shiprocketStatus">
+                    <div class="status-dot"></div>
+                    <span>Checking Shiprocket...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="alert" class="alert"></div>
+        
+        <div class="status-grid">
+            <div class="status-card info">
+                <h3>📥 Fetched</h3>
+                <div class="value" id="statFetched">0</div>
+            </div>
+            <div class="status-card success">
+                <h3>✅ Uploaded</h3>
+                <div class="value" id="statUploaded">0</div>
+            </div>
+            <div class="status-card error">
+                <h3>❌ Failed</h3>
+                <div class="value" id="statFailed">0</div>
+            </div>
+            <div class="status-card warning">
+                <h3>⏭️ Skipped</h3>
+                <div class="value" id="statSkipped">0</div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
+                <span id="syncBtnText">🚀 Start Sync (24h)</span>
+            </button>
+            <button class="btn btn-secondary" id="retryBtn" onclick="retryFailed()">
+                🔁 Retry Failed Orders
+            </button>
+            <button class="btn btn-secondary" onclick="testConnection()">
+                🧪 Test Connection
+            </button>
+            <button class="btn btn-secondary" onclick="refreshLogs()">
+                🔄 Refresh Logs
+            </button>
+        </div>
+        
+        <div class="logs-container">
+            <h2>📋 Live Activity Logs</h2>
+            <div class="logs-viewer" id="logsViewer">
+                <div class="log-entry">Loading logs...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Auto-refresh logs every 2 seconds
+        setInterval(refreshLogs, 2000);
+        
+        // Check connection on load
+        window.addEventListener('load', function() {
+            checkConnectionStatus();
+            refreshStats();
+        });
+        
+        function showAlert(message, type = 'info') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert show ${type}`;
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+        
+        function checkConnectionStatus() {
+            fetch('/api/test-connection', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    const ecwidEl = document.getElementById('ecwidStatus');
+                    const shiprocketEl = document.getElementById('shiprocketStatus');
+                    
+                    ecwidEl.className = data.data.ecwid ? 'connection-badge connected' : 'connection-badge disconnected';
+                    ecwidEl.innerHTML = `<div class="status-dot"></div><span>${data.data.ecwid ? '✅ Ecwid Connected' : '❌ Ecwid Disconnected'}</span>`;
+                    
+                    shiprocketEl.className = data.data.shiprocket ? 'connection-badge connected' : 'connection-badge disconnected';
+                    shiprocketEl.innerHTML = `<div class="status-dot"></div><span>${data.data.shiprocket ? '✅ Shiprocket Connected' : '❌ Shiprocket Disconnected'}</span>`;
+                })
+                .catch(e => {
+                    showAlert('Failed to check connection: ' + e.message, 'error');
+                });
+        }
+        
+        function refreshStats() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('statFetched').textContent = data.data.total_orders || 0;
+                        document.getElementById('statUploaded').textContent = data.data.successful || 0;
+                        document.getElementById('statFailed').textContent = data.data.failed || 0;
+                        document.getElementById('statSkipped').textContent = data.data.pending || 0;
+                    }
+                })
+                .catch(e => console.error('Error refreshing stats:', e));
+        }
+        
+        function startSync() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Syncing...';
+            
+            fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hours: 24, force: false })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const summary = data.summary;
+                        showAlert(`✅ Sync Complete! Fetched: ${summary.fetched}, Uploaded: ${summary.uploaded}, Failed: ${summary.failed}`, 'success');
+                        if (data.errors && data.errors.length > 0) {
+                            showAlert(`⚠️ Errors: ${data.errors.join('; ')}`, 'error');
+                        }
+                    } else {
+                        showAlert(`❌ Sync Failed: ${data.error}`, 'error');
+                    }
+                    refreshStats();
+                    refreshLogs();
+                })
+                .catch(e => {
+                    showAlert(`❌ Error: ${e.message}`, 'error');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🚀 Start Sync (24h)</span>';
+                });
+        }
+        
+        function retryFailed() {
+            const btn = document.getElementById('retryBtn');
+            btn.disabled = true;
+            btn.textContent = '🔄 Retrying...';
+            
+            fetch('/api/retry', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const result = data.data;
+                        showAlert(`✅ Retry Complete! Fixed: ${result.fixed}, Still Failed: ${result.still_failed}`, 'success');
+                    } else {
+                        showAlert(`❌ Retry Failed: ${data.error}`, 'error');
+                    }
+                    refreshStats();
+                    refreshLogs();
+                })
+                .catch(e => showAlert(`❌ Error: ${e.message}`, 'error'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🔁 Retry Failed Orders';
+                });
+        }
+        
+        function testConnection() {
+            showAlert('🧪 Testing connections...', 'info');
+            checkConnectionStatus();
+        }
+        
+        function refreshLogs() {
+            fetch('/api/logs?lines=50')
+                .then(r => r.json())
+                .then(data => {
+                    const viewer = document.getElementById('logsViewer');
+                    
+                    if (!data.logs || data.logs.length === 0) {
+                        viewer.innerHTML = '<div class="log-entry">No logs yet...</div>';
+                        return;
+                    }
+                    
+                    viewer.innerHTML = data.logs.map(log => `
+                        <div class="log-entry ${log.severity}">
+                            <span class="log-timestamp">${log.timestamp}</span>
+                            <span class="log-message">${escapeHtml(log.message)}</span>
+                        </div>
+                    `).join('');
+                    
+                    // Auto-scroll to bottom
+                    viewer.scrollTop = viewer.scrollHeight;
+                })
+                .catch(e => console.error('Error loading logs:', e));
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>
