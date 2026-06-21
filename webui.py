@@ -7,6 +7,7 @@ from flask import Flask, render_template, jsonify, request
 import json
 from datetime import datetime, timedelta
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,17 @@ def create_app(integrator):
         })
     
     return app
+
+
+def run_app(integrator, port=5000):
+    """Run Flask app with correct host binding"""
+    app = create_app(integrator)
+    
+    # Bind to 0.0.0.0 for Render, localhost for local development
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
+    debug = os.getenv('FLASK_DEBUG', 'False') == 'True'
+    
+    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == '__main__':
