@@ -74,6 +74,10 @@
             border-left: 4px solid #3b82f6;
         }
         
+        .status-card.scheduler {
+            border-left: 4px solid #8b5cf6;
+        }
+        
         .status-card h3 {
             color: #666;
             font-size: 12px;
@@ -104,11 +108,151 @@
             color: #3b82f6;
         }
         
+        .status-card.scheduler .value {
+            color: #8b5cf6;
+        }
+        
+        .scheduler-controls {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .scheduler-controls h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .scheduler-info {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 4px solid #8b5cf6;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .info-row label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .info-row value {
+            color: #666;
+        }
+        
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .scheduler-settings {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .setting-group label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .setting-group select,
+        .setting-group input {
+            padding: 10px 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .setting-group select:focus,
+        .setting-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #10b981;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
         .controls {
             display: flex;
             gap: 10px;
             margin-bottom: 30px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .controls > div {
+            display: flex;
+            gap: 10px;
             align-items: center;
         }
         
@@ -119,12 +263,18 @@
             padding: 8px 12px;
             background: white;
             color: #333;
+            width: 80px;
         }
         
         .controls input[type="number"]:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .controls label {
+            color: white;
+            font-weight: 600;
         }
         
         .btn {
@@ -315,6 +465,12 @@
             color: #0c2d6b;
             border-left: 4px solid #3b82f6;
         }
+        
+        .last-sync-detail {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -353,12 +509,69 @@
                 <h3>⏭️ Skipped</h3>
                 <div class="value" id="statSkipped">0</div>
             </div>
+            <div class="status-card scheduler">
+                <h3>⏰ Next Sync</h3>
+                <div class="value" id="nextSyncTime" style="font-size: 18px;">Checking...</div>
+                <div class="last-sync-detail" id="lastSyncTime">Loading...</div>
+            </div>
+        </div>
+        
+        <!-- Scheduler Controls Panel -->
+        <div class="scheduler-controls">
+            <h2>⚙️ Auto-Sync Settings</h2>
+            
+            <div class="scheduler-info">
+                <div class="info-row">
+                    <label>Auto-Sync Status:</label>
+                    <value id="syncStatusDisplay">Checking...</value>
+                </div>
+                <div class="info-row">
+                    <label>Current Interval:</label>
+                    <value id="syncIntervalDisplay">6 hours</value>
+                </div>
+                <div class="info-row">
+                    <label>Last Sync:</label>
+                    <value id="lastSyncDisplay">Never</value>
+                </div>
+                <div class="info-row">
+                    <label>Next Sync:</label>
+                    <value id="nextSyncDisplay">Checking...</value>
+                </div>
+            </div>
+            
+            <div class="scheduler-settings">
+                <div class="setting-group">
+                    <label for="autoSyncToggle">🔄 Enable Auto-Sync</label>
+                    <div class="toggle-switch">
+                        <label class="switch">
+                            <input type="checkbox" id="autoSyncToggle" checked onchange="toggleAutoSync()">
+                            <span class="slider"></span>
+                        </label>
+                        <span id="toggleStatus" style="color: #10b981; font-weight: 600;">Enabled</span>
+                    </div>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="syncInterval">⏱️ Sync Interval</label>
+                    <select id="syncInterval" onchange="updateSyncInterval()">
+                        <option value="1">Every 1 Hour</option>
+                        <option value="2">Every 2 Hours</option>
+                        <option value="3">Every 3 Hours</option>
+                        <option value="4">Every 4 Hours</option>
+                        <option value="6" selected>Every 6 Hours</option>
+                        <option value="8">Every 8 Hours</option>
+                        <option value="12">Every 12 Hours</option>
+                        <option value="24">Every 24 Hours</option>
+                        <option value="48">Every 48 Hours</option>
+                    </select>
+                </div>
+            </div>
         </div>
         
         <div class="controls">
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <label for="hoursInput" style="color: white; font-weight: 600;">Lookback Hours:</label>
-                <input type="number" id="hoursInput" min="1" max="720" value="24" style="padding: 8px 12px; border-radius: 6px; border: 2px solid white; width: 80px; font-weight: 600;">
+            <div>
+                <label for="hoursInput">Lookback Hours:</label>
+                <input type="number" id="hoursInput" min="1" max="720" value="24">
             </div>
             <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
                 <span id="syncBtnText">🚀 Start Sync</span>
@@ -383,13 +596,13 @@
     </div>
     
     <script>
-        // Logs only refresh when buttons are clicked, not automatically
-        // setInterval(refreshLogs, 2000);
-        
         // Check connection on load
         window.addEventListener('load', function() {
             checkConnectionStatus();
             refreshStats();
+            updateSchedulerStatus();
+            // Update scheduler status every 30 seconds
+            setInterval(updateSchedulerStatus, 30000);
         });
         
         function showAlert(message, type = 'info') {
@@ -433,6 +646,65 @@
                 .catch(e => console.error('Error refreshing stats:', e));
         }
         
+        function updateSchedulerStatus() {
+            fetch('/api/scheduler-status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update toggle
+                        document.getElementById('autoSyncToggle').checked = data.auto_sync_enabled;
+                        document.getElementById('toggleStatus').textContent = data.auto_sync_enabled ? 'Enabled' : 'Disabled';
+                        document.getElementById('toggleStatus').style.color = data.auto_sync_enabled ? '#10b981' : '#ef4444';
+                        
+                        // Update interval display
+                        document.getElementById('syncIntervalDisplay').textContent = `${data.auto_sync_interval} hours`;
+                        document.getElementById('syncInterval').value = data.auto_sync_interval;
+                        
+                        // Update last sync
+                        if (data.last_sync_time) {
+                            const lastSync = new Date(data.last_sync_time);
+                            document.getElementById('lastSyncDisplay').textContent = lastSync.toLocaleString();
+                            document.getElementById('lastSyncTime').textContent = `Last sync: ${lastSync.toLocaleString()}`;
+                            
+                            if (data.last_sync_status) {
+                                const status = data.last_sync_status;
+                                document.getElementById('lastSyncDisplay').textContent = 
+                                    `${lastSync.toLocaleString()} - ✅ ${status.uploaded} uploaded, ❌ ${status.failed} failed`;
+                            }
+                        } else {
+                            document.getElementById('lastSyncDisplay').textContent = 'Never';
+                            document.getElementById('lastSyncTime').textContent = 'No sync yet';
+                        }
+                        
+                        // Update next sync
+                        if (data.jobs && data.jobs.length > 0 && data.auto_sync_enabled) {
+                            const nextRun = new Date(data.jobs[0].next_run_time);
+                            const now = new Date();
+                            const timeUntil = Math.round((nextRun - now) / 1000 / 60); // minutes
+                            if (timeUntil > 0) {
+                                const hours = Math.floor(timeUntil / 60);
+                                const mins = timeUntil % 60;
+                                let timeStr = '';
+                                if (hours > 0) timeStr += `${hours}h `;
+                                timeStr += `${mins}m`;
+                                
+                                document.getElementById('nextSyncTime').textContent = timeStr;
+                                document.getElementById('nextSyncDisplay').textContent = nextRun.toLocaleString();
+                            } else {
+                                document.getElementById('nextSyncTime').textContent = 'Soon...';
+                                document.getElementById('nextSyncDisplay').textContent = 'Soon...';
+                            }
+                        } else {
+                            document.getElementById('nextSyncTime').textContent = data.auto_sync_enabled ? 'Waiting...' : 'Off';
+                            document.getElementById('nextSyncDisplay').textContent = data.auto_sync_enabled ? 'Waiting...' : 'Off';
+                        }
+                    }
+                })
+                .catch(e => {
+                    console.error('Error fetching scheduler status:', e);
+                });
+        }
+        
         function startSync() {
             const btn = document.getElementById('syncBtn');
             const hoursInput = document.getElementById('hoursInput');
@@ -458,6 +730,7 @@
                         showAlert(`❌ Sync Failed: ${data.error}`, 'error');
                     }
                     refreshStats();
+                    updateSchedulerStatus();
                     refreshLogs();
                 })
                 .catch(e => {
@@ -466,43 +739,6 @@
                 .finally(() => {
                     btn.disabled = false;
                     btn.innerHTML = '<span>🚀 Start Sync</span>';
-                });
-        }
-        
-        function startForceSync() {
-            if (!confirm('⚠️ FORCE SYNC will re-upload ALL orders, even ones already uploaded.\n\nAre you sure?')) {
-                return;
-            }
-            
-            const btn = document.getElementById('forceSyncBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> Force Syncing...';
-            
-            fetch('/api/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hours: 240, force: true })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        const summary = data.summary;
-                        showAlert(`✅ Force Sync Complete! Fetched: ${summary.fetched}, Uploaded: ${summary.uploaded}, Failed: ${summary.failed}`, 'success');
-                        if (data.errors && data.errors.length > 0) {
-                            showAlert(`⚠️ Errors: ${data.errors.join('; ')}`, 'error');
-                        }
-                    } else {
-                        showAlert(`❌ Sync Failed: ${data.error}`, 'error');
-                    }
-                    refreshStats();
-                    refreshLogs();
-                })
-                .catch(e => {
-                    showAlert(`❌ Error: ${e.message}`, 'error');
-                })
-                .finally(() => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<span>⚡ Force Sync (Re-upload All)</span>';
                 });
         }
         
@@ -521,6 +757,7 @@
                         showAlert(`❌ Retry Failed: ${data.error}`, 'error');
                     }
                     refreshStats();
+                    updateSchedulerStatus();
                     refreshLogs();
                 })
                 .catch(e => showAlert(`❌ Error: ${e.message}`, 'error'))
@@ -557,6 +794,56 @@
                     viewer.scrollTop = viewer.scrollHeight;
                 })
                 .catch(e => console.error('Error loading logs:', e));
+        }
+        
+        function toggleAutoSync() {
+            const toggle = document.getElementById('autoSyncToggle');
+            const enabled = toggle.checked;
+            
+            fetch('/api/scheduler/toggle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                        updateSchedulerStatus();
+                        refreshLogs();
+                    } else {
+                        showAlert(`Error: ${data.error}`, 'error');
+                        toggle.checked = !enabled;
+                    }
+                })
+                .catch(e => {
+                    showAlert(`Error: ${e.message}`, 'error');
+                    toggle.checked = !enabled;
+                });
+        }
+        
+        function updateSyncInterval() {
+            const select = document.getElementById('syncInterval');
+            const interval = parseInt(select.value);
+            
+            fetch('/api/scheduler/interval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interval: interval })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert(data.message, 'success');
+                        updateSchedulerStatus();
+                        refreshLogs();
+                    } else {
+                        showAlert(`Error: ${data.error}`, 'error');
+                    }
+                })
+                .catch(e => {
+                    showAlert(`Error: ${e.message}`, 'error');
+                });
         }
         
         function escapeHtml(text) {
