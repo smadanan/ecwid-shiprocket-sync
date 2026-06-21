@@ -62,10 +62,11 @@ class EcwidShiprocketIntegrator:
                         result['skipped'] += 1
                         continue
                     
-                    shiprocket_order = self._transform_order(order)
+                    # IMPORTANT: Fetch FULL order details, not just the list version
+                    logger.info(f"Fetching full details for order {order_id}")
+                    full_order = self.ecwid.get_order(order_id)
                     
-                    # DEBUG: Log the order data being sent
-                    logger.info(f"DEBUG - Order data to be sent: {json.dumps(shiprocket_order, indent=2)}")
+                    shiprocket_order = self._transform_order(full_order)
                     
                     logger.info(f"Uploading order {order_id} to Shiprocket...")
                     response = self.shiprocket.create_order(shiprocket_order)
@@ -150,14 +151,27 @@ class EcwidShiprocketIntegrator:
                 'sku': product.get('productId'),
                 'units': product.get('quantity'),
                 'selling_price': float(product.get('price', 0)),
-                'weight': product.get('weight', 0),
-                'length': product.get('length'),
-                'breadth': product.get('breadth'),
-                'height': product.get('height'),
             })
         
-        customer = ecwid_order.get('customer', {})
-        shipping = ecwid_order.get('shippingPerson', customer)
+        # Get billing info
+        billing = ecwid_order.get('billingPerson', {})
+        billing_name = billing.get('name', '')
+        billing_email = ecwid_order.get('email', '')
+        billing_phone = billing.get('phone', '')
+        billing_address = billing.get('street', '')
+        billing_city = billing.get('city', '')
+        billing_state = billing.get('stateCode', '')
+        billing_pincode = billing.get('postalCode', '')
+        
+        # Get shipping info
+        shipping = ecwid_order.get('shippingPerson', billing)
+        shipping_name = shipping.get('name', '')
+        shipping_email = ecwid_order.get('email', '')
+        shipping_phone = shipping.get('phone', '')
+        shipping_address = shipping.get('street', '')
+        shipping_city = shipping.get('city', '')
+        shipping_state = shipping.get('stateCode', '')
+        shipping_pincode = shipping.get('postalCode', '')
         
         package_dims = self._calculate_package_dimensions(items)
         
@@ -166,20 +180,20 @@ class EcwidShiprocketIntegrator:
             'order_date': ecwid_order.get('createDate', '').split('T')[0],
             'pickup_location_id': self.config.shiprocket_pickup_location_id,
             'channel_id': self.config.shiprocket_channel_id,
-            'billing_customer_name': customer.get('customerName', 'N/A'),
-            'billing_email': customer.get('email', ''),
-            'billing_phone': customer.get('phone', ''),
-            'billing_address': customer.get('shippingStreet', ''),
-            'billing_city': customer.get('shippingCity', ''),
-            'billing_state': customer.get('shippingStateCode', ''),
-            'billing_pincode': customer.get('shippingPostalCode', ''),
-            'shipping_customer_name': shipping.get('customerName', 'N/A'),
-            'shipping_email': shipping.get('email', ''),
-            'shipping_phone': shipping.get('phone', ''),
-            'shipping_address': shipping.get('shippingStreet', ''),
-            'shipping_city': shipping.get('shippingCity', ''),
-            'shipping_state': shipping.get('shippingStateCode', ''),
-            'shipping_pincode': shipping.get('shippingPostalCode', ''),
+            'billing_customer_name': billing_name or 'N/A',
+            'billing_email': billing_email,
+            'billing_phone': billing_phone,
+            'billing_address': billing_address,
+            'billing_city': billing_city,
+            'billing_state': billing_state,
+            'billing_pincode': billing_pincode,
+            'shipping_customer_name': shipping_name or 'N/A',
+            'shipping_email': shipping_email,
+            'shipping_phone': shipping_phone,
+            'shipping_address': shipping_address,
+            'shipping_city': shipping_city,
+            'shipping_state': shipping_state,
+            'shipping_pincode': shipping_pincode,
             'order_items': items,
             'payment_method': ecwid_order.get('paymentStatus', 'unknown'),
             'shipping_method': ecwid_order.get('shippingMethod', 'standard'),
@@ -190,6 +204,8 @@ class EcwidShiprocketIntegrator:
             'height': package_dims['height'],
             'weight': package_dims['weight'],
         }
+        
+        logger.info(f"Transformed order {ecwid_order.get('id')}: {json.dumps(shiprocket_order, indent=2)}")
         
         return shiprocket_order
     
