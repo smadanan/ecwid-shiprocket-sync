@@ -1,10 +1,11 @@
 """
-Ecwid API Client
-Handles communication with Ecwid REST API
+Ecwid API Client - DEBUG VERSION
+Shows raw API response structure
 """
 
 import requests
 import logging
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 
@@ -67,17 +68,7 @@ class EcwidClient:
     ) -> List[Dict]:
         """
         Get orders from Ecwid
-        
-        Args:
-            hours: Number of hours to look back
-            limit: Number of orders to fetch per page
-            offset: Pagination offset
-            status: Filter by order status
-        
-        Returns:
-            List of orders
         """
-        # Calculate date filter
         from_date = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
         
         params = {
@@ -98,7 +89,6 @@ class EcwidClient:
         
         logger.info(f"Fetched {len(orders)} orders out of {total}")
         
-        # Handle pagination
         if len(orders) < total:
             remaining_orders = self.get_orders(
                 hours=hours,
@@ -113,7 +103,12 @@ class EcwidClient:
     def get_order(self, order_id: int) -> Dict:
         """Get specific order details"""
         logger.info(f"Fetching order {order_id} from Ecwid")
-        return self._make_request('GET', f'/orders/{order_id}')
+        order = self._make_request('GET', f'/orders/{order_id}')
+        
+        # DEBUG: Log the full order structure
+        logger.info(f"DEBUG - Raw Ecwid order {order_id} response: {json.dumps(order, indent=2)}")
+        
+        return order
     
     def update_order_status(self, order_id: int, status: str) -> Dict:
         """Update order status in Ecwid"""
@@ -137,8 +132,8 @@ class EcwidClient:
         """Test API connection"""
         try:
             response = self._make_request('GET', '/profile')
-            logger.info("✓ Ecwid API connection successful")
+            logger.info("Ecwid API connection successful")
             return True
         except Exception as e:
-            logger.error(f"✗ Ecwid API connection failed: {str(e)}")
+            logger.error(f"Ecwid API connection failed: {str(e)}")
             return False
