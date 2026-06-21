@@ -17,9 +17,10 @@ def run_app(integrator, port=5000):
     """Run the Flask web UI"""
     # Get the directory where this file is located
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    template_dir = os.path.join(base_dir, 'templates')
     
-    # dashboard.html is in the same directory as webui.py
-    app = Flask(__name__, template_folder=base_dir)
+    # dashboard_enhanced.html is in templates/ folder
+    app = Flask(__name__, template_folder=template_dir)
     
     # Store integration instance
     app.integrator = integrator
