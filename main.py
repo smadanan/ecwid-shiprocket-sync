@@ -147,8 +147,8 @@ class EcwidShiprocketIntegrator:
         items = []
         for product in ecwid_order.get('items', []):
             items.append({
-                'name': product.get('productName'),
-                'sku': product.get('productId'),
+                'name': product.get('name'),  # Use 'name' not 'productName'
+                'sku': product.get('sku'),  # Use 'sku' not 'productId'
                 'units': product.get('quantity'),
                 'selling_price': float(product.get('price', 0)),
             })
@@ -160,7 +160,7 @@ class EcwidShiprocketIntegrator:
         billing_phone = billing.get('phone', '')
         billing_address = billing.get('street', '')
         billing_city = billing.get('city', '')
-        billing_state = billing.get('stateCode', '')
+        billing_state = billing.get('stateOrProvinceCode', '')  # Use 'stateOrProvinceCode' not 'stateCode'
         billing_pincode = billing.get('postalCode', '')
         
         # Get shipping info
@@ -170,7 +170,7 @@ class EcwidShiprocketIntegrator:
         shipping_phone = shipping.get('phone', '')
         shipping_address = shipping.get('street', '')
         shipping_city = shipping.get('city', '')
-        shipping_state = shipping.get('stateCode', '')
+        shipping_state = shipping.get('stateOrProvinceCode', '')  # Use 'stateOrProvinceCode' not 'stateCode'
         shipping_pincode = shipping.get('postalCode', '')
         
         package_dims = self._calculate_package_dimensions(items)
