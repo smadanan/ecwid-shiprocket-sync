@@ -1,0 +1,16 @@
+{
+  "ecwid_store_id": "YOUR_ECWID_STORE_ID",
+  "ecwid_api_token": "YOUR_ECWID_API_TOKEN",
+  "shiprocket_email": "your-email@example.com",
+  "shiprocket_password": "your-shiprocket-password",
+  "shiprocket_pickup_location_id": 123456,
+  "shiprocket_channel_id": 1,
+  "default_package_length": 10,
+  "default_package_breadth": 10,
+  "default_package_height": 10,
+  "default_package_weight": 0.5,
+  "sync_interval_hours": 24,
+  "auto_sync_enabled": false,
+  "notify_on_failure": true,
+  "webhook_url": ""
+}
