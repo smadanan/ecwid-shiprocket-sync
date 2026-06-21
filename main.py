@@ -60,10 +60,14 @@ class EcwidShiprocketIntegrator:
                 try:
                     order_id = order['id']
                     
-                    if self.db.order_exists(order_id) and not force:
-                        logger.info(f"Order {order_id} already processed, skipping")
-                        result['skipped'] += 1
-                        continue
+                    # Check if order already exists in database
+                    if self.db.order_exists(order_id):
+                        if force:
+                            logger.warning(f"⚠️ Order {order_id} already in DB but FORCE MODE enabled - will re-upload!")
+                        else:
+                            logger.info(f"✅ Order {order_id} already processed - SKIPPING (in database)")
+                            result['skipped'] += 1
+                            continue
                     
                     # Fetch FULL order details
                     logger.info(f"Fetching full details for order {order_id}")
