@@ -109,6 +109,22 @@
             gap: 10px;
             margin-bottom: 30px;
             flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .controls input[type="number"] {
+            font-weight: 600;
+            border-radius: 6px;
+            border: 2px solid white;
+            padding: 8px 12px;
+            background: white;
+            color: #333;
+        }
+        
+        .controls input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         
         .btn {
@@ -340,11 +356,12 @@
         </div>
         
         <div class="controls">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <label for="hoursInput" style="color: white; font-weight: 600;">Lookback Hours:</label>
+                <input type="number" id="hoursInput" min="1" max="720" value="24" style="padding: 8px 12px; border-radius: 6px; border: 2px solid white; width: 80px; font-weight: 600;">
+            </div>
             <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
-                <span id="syncBtnText">🚀 Start Sync (24h)</span>
-            </button>
-            <button class="btn btn-secondary" id="forceSyncBtn" onclick="startForceSync()">
-                ⚡ Force Sync (Re-upload All)
+                <span id="syncBtnText">🚀 Start Sync</span>
             </button>
             <button class="btn btn-secondary" id="retryBtn" onclick="retryFailed()">
                 🔁 Retry Failed Orders
@@ -418,13 +435,16 @@
         
         function startSync() {
             const btn = document.getElementById('syncBtn');
+            const hoursInput = document.getElementById('hoursInput');
+            const hours = parseInt(hoursInput.value) || 24;
+            
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Syncing...';
             
             fetch('/api/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hours: 24, force: false })
+                body: JSON.stringify({ hours: hours, force: false })
             })
                 .then(r => r.json())
                 .then(data => {
@@ -445,7 +465,7 @@
                 })
                 .finally(() => {
                     btn.disabled = false;
-                    btn.innerHTML = '<span>🚀 Start Sync (24h)</span>';
+                    btn.innerHTML = '<span>🚀 Start Sync</span>';
                 });
         }
         
