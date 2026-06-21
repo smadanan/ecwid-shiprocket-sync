@@ -62,13 +62,14 @@ class EcwidShiprocketIntegrator:
                         result['skipped'] += 1
                         continue
                     
-                    # IMPORTANT: Fetch FULL order details, not just the list version
+                    # Fetch FULL order details
                     logger.info(f"Fetching full details for order {order_id}")
                     full_order = self.ecwid.get_order(order_id)
                     
                     shiprocket_order = self._transform_order(full_order)
                     
                     logger.info(f"Uploading order {order_id} to Shiprocket...")
+                    logger.info(f"Shiprocket payload: {json.dumps(shiprocket_order, indent=2)}")
                     response = self.shiprocket.create_order(shiprocket_order)
                     
                     if response.get('success'):
@@ -147,65 +148,70 @@ class EcwidShiprocketIntegrator:
         items = []
         for product in ecwid_order.get('items', []):
             items.append({
-                'name': product.get('name'),  # Use 'name' not 'productName'
-                'sku': product.get('sku'),  # Use 'sku' not 'productId'
-                'units': product.get('quantity'),
+                'name': product.get('name', 'Product'),
+                'sku': product.get('sku', ''),
+                'units': product.get('quantity', 1),
                 'selling_price': float(product.get('price', 0)),
             })
         
         # Get billing info
         billing = ecwid_order.get('billingPerson', {})
-        billing_name = billing.get('name', '')
-        billing_email = ecwid_order.get('email', '')
-        billing_phone = billing.get('phone', '')
-        billing_address = billing.get('street', '')
-        billing_city = billing.get('city', '')
-        billing_state = billing.get('stateOrProvinceCode', '')  # Use 'stateOrProvinceCode' not 'stateCode'
-        billing_pincode = billing.get('postalCode', '')
+        billing_name = billing.get('name', 'N/A').strip()
+        billing_email = ecwid_order.get('email', '').strip()
+        billing_phone = billing.get('phone', '').strip()
+        billing_address = billing.get('street', '').strip()
+        billing_city = billing.get('city', '').strip()
+        billing_state = billing.get('stateOrProvinceCode', '').strip()
+        billing_pincode = billing.get('postalCode', '').strip()
         
         # Get shipping info
         shipping = ecwid_order.get('shippingPerson', billing)
-        shipping_name = shipping.get('name', '')
-        shipping_email = ecwid_order.get('email', '')
-        shipping_phone = shipping.get('phone', '')
-        shipping_address = shipping.get('street', '')
-        shipping_city = shipping.get('city', '')
-        shipping_state = shipping.get('stateOrProvinceCode', '')  # Use 'stateOrProvinceCode' not 'stateCode'
-        shipping_pincode = shipping.get('postalCode', '')
+        shipping_name = shipping.get('name', 'N/A').strip()
+        shipping_phone = shipping.get('phone', '').strip()
+        shipping_address = shipping.get('street', '').strip()
+        shipping_city = shipping.get('city', '').strip()
+        shipping_state = shipping.get('stateOrProvinceCode', '').strip()
+        shipping_pincode = shipping.get('postalCode', '').strip()
         
         package_dims = self._calculate_package_dimensions(items)
         
+        # Build order in Shiprocket's exact format
         shiprocket_order = {
-            'order_id': str(ecwid_order.get('id')),
-            'order_date': ecwid_order.get('createDate', '').split('T')[0],
-            'pickup_location_id': self.config.shiprocket_pickup_location_id,
-            'channel_id': self.config.shiprocket_channel_id,
-            'billing_customer_name': billing_name or 'N/A',
+            'order_id': str(ecwid_order.get('id', '')),
+            'order_date': ecwid_order.get('createDate', '').split('T')[0] if ecwid_order.get('createDate') else '',
+            'pickup_location_id': int(self.config.shiprocket_pickup_location_id),
+            'channel_id': int(self.config.shiprocket_channel_id),
+            'comment': 'Order synced from Ecwid',
+            'billing_customer_name': billing_name,
             'billing_email': billing_email,
             'billing_phone': billing_phone,
             'billing_address': billing_address,
+            'billing_address_2': '',
             'billing_city': billing_city,
-            'billing_state': billing_state,
             'billing_pincode': billing_pincode,
-            'shipping_customer_name': shipping_name or 'N/A',
-            'shipping_email': shipping_email,
+            'billing_state': billing_state,
+            'billing_country': billing.get('countryCode', 'IN'),
+            'shipping_customer_name': shipping_name,
+            'shipping_email': billing_email,  # Use billing email if shipping email not available
             'shipping_phone': shipping_phone,
             'shipping_address': shipping_address,
+            'shipping_address_2': '',
             'shipping_city': shipping_city,
-            'shipping_state': shipping_state,
             'shipping_pincode': shipping_pincode,
+            'shipping_state': shipping_state,
+            'shipping_country': shipping.get('countryCode', 'IN'),
             'order_items': items,
-            'payment_method': ecwid_order.get('paymentStatus', 'unknown'),
-            'shipping_method': ecwid_order.get('shippingMethod', 'standard'),
+            'payment_method': 'Prepaid',
+            'shipping_charges': 0,
+            'giftwrap_charges': 0,
+            'transaction_charges': 0,
             'total_discount': float(ecwid_order.get('discount', 0)),
             'sub_total': float(ecwid_order.get('subtotal', 0)),
-            'length': package_dims['length'],
-            'breadth': package_dims['breadth'],
-            'height': package_dims['height'],
-            'weight': package_dims['weight'],
+            'length': int(package_dims['length']),
+            'breadth': int(package_dims['breadth']),
+            'height': int(package_dims['height']),
+            'weight': round(package_dims['weight'], 2),
         }
-        
-        logger.info(f"Transformed order {ecwid_order.get('id')}: {json.dumps(shiprocket_order, indent=2)}")
         
         return shiprocket_order
     
