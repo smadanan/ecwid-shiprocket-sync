@@ -76,11 +76,16 @@ class EcwidShiprocketIntegrator:
                     response = self.shiprocket.create_order(shiprocket_order)
                     logger.info(f"RESPONSE: {json.dumps(response, indent=2)}")
                     
-                    if response.get('success'):
+                    # Shiprocket returns order_id on success (not 'success' field)
+                    if response.get('order_id') or response.get('success'):
                         shiprocket_id = response.get('order_id')
+                        shipment_id = response.get('shipment_id')
                         self.db.save_order(order_id, shiprocket_id, 'success')
                         result['uploaded'] += 1
-                        logger.info(f"✅ Order {order_id} uploaded successfully! Shiprocket ID: {shiprocket_id}")
+                        logger.info(f"✅ Order {order_id} uploaded successfully!")
+                        logger.info(f"   Shiprocket Order ID: {shiprocket_id}")
+                        logger.info(f"   Shipment ID: {shipment_id}")
+                        logger.info(f"   Status: {response.get('status', 'N/A')}")
                     else:
                         error_msg = response.get('message', 'Unknown error')
                         errors_dict = response.get('errors', {})
@@ -368,7 +373,8 @@ class EcwidShiprocketIntegrator:
                 shiprocket_order = self._transform_order(ecwid_order)
                 response = self.shiprocket.create_order(shiprocket_order)
                 
-                if response.get('success'):
+                # Shiprocket returns order_id on success
+                if response.get('order_id') or response.get('success'):
                     shiprocket_id = response.get('order_id')
                     self.db.update_order_status(ecwid_id, shiprocket_id, 'success')
                     result['fixed'] += 1
