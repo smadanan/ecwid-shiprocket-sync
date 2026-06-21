@@ -69,14 +69,15 @@ class EcwidShiprocketIntegrator:
                     shiprocket_order = self._transform_order(full_order)
                     
                     logger.info(f"Uploading order {order_id} to Shiprocket...")
-                    logger.info(f"Shiprocket payload: {json.dumps(shiprocket_order, indent=2)}")
+                    logger.info(f"PAYLOAD: {json.dumps(shiprocket_order, indent=2)}")
                     response = self.shiprocket.create_order(shiprocket_order)
+                    logger.info(f"RESPONSE: {json.dumps(response, indent=2)}")
                     
                     if response.get('success'):
                         shiprocket_id = response.get('order_id')
                         self.db.save_order(order_id, shiprocket_id, 'success')
                         result['uploaded'] += 1
-                        logger.info(f"Order {order_id} uploaded successfully")
+                        logger.info(f"✅ Order {order_id} uploaded successfully!")
                     else:
                         error_msg = response.get('message', 'Unknown error')
                         self.db.save_order(order_id, None, 'failed', error_msg)
@@ -95,6 +96,74 @@ class EcwidShiprocketIntegrator:
         except Exception as e:
             logger.error(f"Critical error during sync: {str(e)}")
             raise
+    
+    def _get_state_full_name(self, state_code: str) -> str:
+        """Convert state code to full name (RJ -> Rajasthan)"""
+        state_map = {
+            'AN': 'Andaman and Nicobar Islands',
+            'AP': 'Andhra Pradesh',
+            'AR': 'Arunachal Pradesh',
+            'AS': 'Assam',
+            'BR': 'Bihar',
+            'CG': 'Chhattisgarh',
+            'CH': 'Chandigarh',
+            'CT': 'Chhattisgarh',
+            'DD': 'Daman and Diu',
+            'DL': 'Delhi',
+            'DN': 'Dadra and Nagar Haveli',
+            'GA': 'Goa',
+            'GJ': 'Gujarat',
+            'HR': 'Haryana',
+            'HP': 'Himachal Pradesh',
+            'JK': 'Jammu and Kashmir',
+            'JH': 'Jharkhand',
+            'KA': 'Karnataka',
+            'KL': 'Kerala',
+            'LA': 'Ladakh',
+            'LD': 'Lakshadweep',
+            'MP': 'Madhya Pradesh',
+            'MH': 'Maharashtra',
+            'MN': 'Manipur',
+            'ML': 'Meghalaya',
+            'MZ': 'Mizoram',
+            'NL': 'Nagaland',
+            'OR': 'Odisha',
+            'OD': 'Odisha',
+            'PB': 'Punjab',
+            'PY': 'Puducherry',
+            'RJ': 'Rajasthan',
+            'SK': 'Sikkim',
+            'TN': 'Tamil Nadu',
+            'TG': 'Telangana',
+            'TR': 'Tripura',
+            'UP': 'Uttar Pradesh',
+            'UT': 'Uttarakhand',
+            'WB': 'West Bengal',
+        }
+        return state_map.get(state_code.upper(), state_code)
+    
+    def _clean_phone(self, phone: str) -> str:
+        """Clean phone number - remove +91, spaces, dashes"""
+        if not phone:
+            return ''
+        # Remove +91, +, spaces, dashes
+        phone = phone.replace('+91', '').replace('+', '').replace(' ', '').replace('-', '')
+        # Keep only digits
+        phone = ''.join(c for c in phone if c.isdigit())
+        # Return last 10 digits (Indian mobile)
+        return phone[-10:] if len(phone) >= 10 else phone
+    
+    def _format_order_date(self, date_str: str) -> str:
+        """Convert order date to dd-mm-yyyy hh:MM format"""
+        try:
+            # Ecwid format: "2026-06-15 08:21:52 +0000"
+            if 'T' in date_str:
+                date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                date_obj = datetime.strptime(date_str.split('+')[0].strip(), '%Y-%m-%d %H:%M:%S')
+            return date_obj.strftime('%d-%m-%Y %H:%M')
+        except:
+            return ''
     
     def _calculate_package_dimensions(self, items: List[Dict]) -> Dict:
         total_weight = 0.0
@@ -135,13 +204,13 @@ class EcwidShiprocketIntegrator:
         if total_weight == 0:
             total_weight = self.config.default_package_weight * len(items) if items else self.config.default_package_weight
         
-        logger.info(f"Package dimensions calculated - L:{max_length}cm, B:{max_breadth}cm, H:{max_height}cm, W:{total_weight}kg")
+        logger.info(f"Package dimensions: L:{max_length}cm, B:{max_breadth}cm, H:{max_height}cm, W:{total_weight}kg")
         
         return {
-            'length': max_length,
-            'breadth': max_breadth,
-            'height': max_height,
-            'weight': total_weight
+            'length': int(max_length),
+            'breadth': int(max_breadth),
+            'height': int(max_height),
+            'weight': round(total_weight, 2),
         }
     
     def _transform_order(self, ecwid_order: Dict) -> Dict:
@@ -150,67 +219,69 @@ class EcwidShiprocketIntegrator:
             items.append({
                 'name': product.get('name', 'Product'),
                 'sku': product.get('sku', ''),
-                'units': product.get('quantity', 1),
+                'quantity': product.get('quantity', 1),
                 'selling_price': float(product.get('price', 0)),
             })
         
         # Get billing info
         billing = ecwid_order.get('billingPerson', {})
-        billing_name = billing.get('name', 'N/A').strip()
-        billing_email = ecwid_order.get('email', '').strip()
-        billing_phone = billing.get('phone', '').strip()
+        billing_name = billing.get('name', 'Customer').strip()
+        billing_phone = self._clean_phone(billing.get('phone', ''))
         billing_address = billing.get('street', '').strip()
         billing_city = billing.get('city', '').strip()
-        billing_state = billing.get('stateOrProvinceCode', '').strip()
+        billing_state = self._get_state_full_name(billing.get('stateOrProvinceCode', ''))
         billing_pincode = billing.get('postalCode', '').strip()
         
         # Get shipping info
         shipping = ecwid_order.get('shippingPerson', billing)
-        shipping_name = shipping.get('name', 'N/A').strip()
-        shipping_phone = shipping.get('phone', '').strip()
+        shipping_name = shipping.get('name', 'Customer').strip()
+        shipping_phone = self._clean_phone(shipping.get('phone', ''))
         shipping_address = shipping.get('street', '').strip()
         shipping_city = shipping.get('city', '').strip()
-        shipping_state = shipping.get('stateOrProvinceCode', '').strip()
+        shipping_state = self._get_state_full_name(shipping.get('stateOrProvinceCode', ''))
         shipping_pincode = shipping.get('postalCode', '').strip()
         
         package_dims = self._calculate_package_dimensions(items)
         
+        # Get first product for SKU and name
+        first_item = items[0] if items else {'name': 'Product', 'sku': 'SKU', 'quantity': 1, 'selling_price': 0}
+        
         # Build order in Shiprocket's exact format
         shiprocket_order = {
             'order_id': str(ecwid_order.get('id', '')),
-            'order_date': ecwid_order.get('createDate', '').split('T')[0] if ecwid_order.get('createDate') else '',
+            'order_date': self._format_order_date(ecwid_order.get('createDate', '')),
             'pickup_location_id': int(self.config.shiprocket_pickup_location_id),
             'channel_id': int(self.config.shiprocket_channel_id),
-            'comment': 'Order synced from Ecwid',
+            'payment_method': 'Prepaid',
             'billing_customer_name': billing_name,
-            'billing_email': billing_email,
+            'billing_email': ecwid_order.get('email', '').strip(),
             'billing_phone': billing_phone,
             'billing_address': billing_address,
             'billing_address_2': '',
             'billing_city': billing_city,
             'billing_pincode': billing_pincode,
             'billing_state': billing_state,
-            'billing_country': billing.get('countryCode', 'IN'),
+            'billing_country': 'India',
             'shipping_customer_name': shipping_name,
-            'shipping_email': billing_email,  # Use billing email if shipping email not available
+            'shipping_email': ecwid_order.get('email', '').strip(),
             'shipping_phone': shipping_phone,
             'shipping_address': shipping_address,
             'shipping_address_2': '',
             'shipping_city': shipping_city,
             'shipping_pincode': shipping_pincode,
             'shipping_state': shipping_state,
-            'shipping_country': shipping.get('countryCode', 'IN'),
+            'shipping_country': 'India',
             'order_items': items,
-            'payment_method': 'Prepaid',
             'shipping_charges': 0,
             'giftwrap_charges': 0,
             'transaction_charges': 0,
             'total_discount': float(ecwid_order.get('discount', 0)),
             'sub_total': float(ecwid_order.get('subtotal', 0)),
-            'length': int(package_dims['length']),
-            'breadth': int(package_dims['breadth']),
-            'height': int(package_dims['height']),
-            'weight': round(package_dims['weight'], 2),
+            'length': package_dims['length'],
+            'breadth': package_dims['breadth'],
+            'height': package_dims['height'],
+            'weight': package_dims['weight'],
+            'comment': 'Order synced from Ecwid',
         }
         
         return shiprocket_order
@@ -245,7 +316,7 @@ class EcwidShiprocketIntegrator:
                     shiprocket_id = response.get('order_id')
                     self.db.update_order_status(ecwid_id, shiprocket_id, 'success')
                     result['fixed'] += 1
-                    logger.info(f"Fixed order {ecwid_id}")
+                    logger.info(f"✅ Fixed order {ecwid_id}")
                 else:
                     result['still_failed'] += 1
                     logger.warning(f"Order {ecwid_id} still failing")
