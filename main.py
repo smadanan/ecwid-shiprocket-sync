@@ -90,6 +90,68 @@ class EcwidShiprocketIntegrator:
             logger.error(f"Critical error during sync: {str(e)}")
             raise
     
+    def _calculate_package_dimensions(self, items: List[Dict]) -> Dict:
+        """
+        Calculate package dimensions from order items
+        
+        Returns dict with:
+        - length, breadth, height (in cm)
+        - weight (in kg)
+        """
+        
+        total_weight = 0.0
+        max_length = self.config.default_package_length
+        max_breadth = self.config.default_package_breadth
+        max_height = self.config.default_package_height
+        
+        # Try to get actual dimensions from products
+        for item in items:
+            # Get weight from item
+            weight = item.get('weight')
+            if weight:
+                try:
+                    # Weight might be string or number
+                    total_weight += float(weight) * item.get('quantity', 1)
+                except (ValueError, TypeError):
+                    pass
+            
+            # Get dimensions from item
+            length = item.get('length')
+            breadth = item.get('breadth')
+            height = item.get('height')
+            
+            # Use maximum dimensions found
+            if length:
+                try:
+                    max_length = max(max_length, float(length))
+                except (ValueError, TypeError):
+                    pass
+            
+            if breadth:
+                try:
+                    max_breadth = max(max_breadth, float(breadth))
+                except (ValueError, TypeError):
+                    pass
+            
+            if height:
+                try:
+                    max_height = max(max_height, float(height))
+                except (ValueError, TypeError):
+                    pass
+        
+        # If no weight calculated, use default
+        if total_weight == 0:
+            total_weight = self.config.default_package_weight * len(items) if items else self.config.default_package_weight
+        
+        logger.info(f"Package dimensions calculated - L:{max_length}cm, B:{max_breadth}cm, H:{max_height}cm, W:{total_weight}kg")
+        
+        return {
+            'length': max_length,
+            'breadth': max_breadth,
+            'height': max_height,
+            'weight': total_weight
+        }
+    
     def _transform_order(self, ecwid_order: Dict) -> Dict:
         items = []
         for product in ecwid_order.get('items', []):
@@ -97,11 +159,18 @@ class EcwidShiprocketIntegrator:
                 'name': product.get('productName'),
                 'sku': product.get('productId'),
                 'units': product.get('quantity'),
-                'selling_price': float(product.get('price', 0))
+                'selling_price': float(product.get('price', 0)),
+                'weight': product.get('weight', 0),
+                'length': product.get('length'),
+                'breadth': product.get('breadth'),
+                'height': product.get('height'),
             })
         
         customer = ecwid_order.get('customer', {})
         shipping = ecwid_order.get('shippingPerson', customer)
+        
+        # Calculate actual package dimensions from items
+        package_dims = self._calculate_package_dimensions(items)
         
         shiprocket_order = {
             'order_id': str(ecwid_order.get('id')),
@@ -127,10 +196,10 @@ class EcwidShiprocketIntegrator:
             'shipping_method': ecwid_order.get('shippingMethod', 'standard'),
             'total_discount': float(ecwid_order.get('discount', 0)),
             'sub_total': float(ecwid_order.get('subtotal', 0)),
-            'length': self.config.default_package_length,
-            'breadth': self.config.default_package_breadth,
-            'height': self.config.default_package_height,
-            'weight': self.config.default_package_weight,
+            'length': package_dims['length'],
+            'breadth': package_dims['breadth'],
+            'height': package_dims['height'],
+            'weight': package_dims['weight'],
         }
         
         return shiprocket_order
