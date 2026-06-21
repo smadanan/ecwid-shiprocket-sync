@@ -8,16 +8,36 @@ import json
 import logging
 from flask import Flask, render_template, jsonify, request
 from datetime import datetime
+from scheduler import SyncScheduler
 
 logger = logging.getLogger(__name__)
 
 
 def run_app(integrator, port=5000):
     """Run the Flask web UI"""
-    app = Flask(__name__, template_folder='templates')
+    # Get the directory where this file is located
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # dashboard.html is in the same directory as webui.py
+    app = Flask(__name__, template_folder=base_dir)
     
     # Store integration instance
     app.integrator = integrator
+    
+    # Initialize and start the automatic scheduler
+    logger.info("🔄 Initializing automatic sync scheduler...")
+    scheduler = SyncScheduler(integrator)
+    app.scheduler = scheduler
+    app.auto_sync_enabled = True
+    app.auto_sync_interval = 6  # Default 6 hours
+    
+    # Start scheduler with default interval
+    scheduler.schedule_interval_sync(hours=app.auto_sync_interval)
+    logger.info(f"✅ Scheduler started - will sync every {app.auto_sync_interval} hours")
+    
+    # Track last sync time
+    app.last_sync_time = None
+    app.last_sync_status = None
     
     @app.route('/')
     def index():
@@ -82,6 +102,10 @@ def run_app(integrator, port=5000):
             force = request.json.get('force', False) if request.json else False
             
             result = app.integrator.sync_orders(hours=hours, force=force)
+            
+            # Update last sync time and status
+            app.last_sync_time = datetime.now()
+            app.last_sync_status = result
             
             # Format response with details
             response_data = {
@@ -203,6 +227,95 @@ def run_app(integrator, port=5000):
                 'success': False,
                 'error': str(e),
                 'logs': []
+            }), 500
+    
+    @app.route('/api/scheduler-status')
+    def scheduler_status():
+        """Get scheduler status"""
+        try:
+            jobs = app.scheduler.get_jobs()
+            return jsonify({
+                'success': True,
+                'auto_sync_enabled': app.auto_sync_enabled,
+                'auto_sync_interval': app.auto_sync_interval,
+                'last_sync_time': app.last_sync_time.isoformat() if app.last_sync_time else None,
+                'last_sync_status': app.last_sync_status,
+                'jobs': [
+                    {
+                        'id': job.id,
+                        'name': job.name,
+                        'next_run_time': job.next_run_time.isoformat() if job.next_run_time else None
+                    }
+                    for job in jobs
+                ]
+            })
+        except Exception as e:
+            logger.error(f"Error getting scheduler status: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'auto_sync_enabled': app.auto_sync_enabled
+            }), 500
+    
+    @app.route('/api/scheduler/toggle', methods=['POST'])
+    def toggle_scheduler():
+        """Toggle auto-sync on/off"""
+        try:
+            enabled = request.json.get('enabled', True) if request.json else True
+            
+            if enabled:
+                app.scheduler.resume()
+                app.auto_sync_enabled = True
+                logger.info(f"✅ Auto-sync ENABLED (every {app.auto_sync_interval} hours)")
+                message = f"Auto-sync enabled (every {app.auto_sync_interval} hours)"
+            else:
+                app.scheduler.pause()
+                app.auto_sync_enabled = False
+                logger.info("⏸️ Auto-sync PAUSED")
+                message = "Auto-sync disabled"
+            
+            return jsonify({
+                'success': True,
+                'enabled': app.auto_sync_enabled,
+                'message': message
+            })
+        except Exception as e:
+            logger.error(f"Error toggling scheduler: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+    
+    @app.route('/api/scheduler/interval', methods=['POST'])
+    def set_scheduler_interval():
+        """Set scheduler interval"""
+        try:
+            interval = request.json.get('interval', 6) if request.json else 6
+            
+            # Validate interval
+            if interval < 1 or interval > 168:  # 1 hour to 7 days
+                return jsonify({
+                    'success': False,
+                    'error': 'Interval must be between 1 and 168 hours'
+                }), 400
+            
+            app.auto_sync_interval = interval
+            
+            # Reschedule with new interval
+            app.scheduler.schedule_interval_sync(hours=interval)
+            
+            logger.info(f"✅ Auto-sync interval updated to {interval} hours")
+            
+            return jsonify({
+                'success': True,
+                'interval': app.auto_sync_interval,
+                'message': f"Auto-sync interval set to {interval} hours"
+            })
+        except Exception as e:
+            logger.error(f"Error setting interval: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
             }), 500
     
     # Health check
