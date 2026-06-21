@@ -48,7 +48,10 @@ class EcwidShiprocketIntegrator:
         }
         
         try:
+            logger.info(f"========== SYNC START ==========")
             logger.info(f"Fetching orders from past {hours} hours...")
+            logger.info(f"Force mode: {force}")
+            
             orders = self.ecwid.get_orders(hours=hours)
             result['fetched'] = len(orders)
             logger.info(f"Found {len(orders)} new orders")
@@ -77,24 +80,31 @@ class EcwidShiprocketIntegrator:
                         shiprocket_id = response.get('order_id')
                         self.db.save_order(order_id, shiprocket_id, 'success')
                         result['uploaded'] += 1
-                        logger.info(f"✅ Order {order_id} uploaded successfully!")
+                        logger.info(f"✅ Order {order_id} uploaded successfully! Shiprocket ID: {shiprocket_id}")
                     else:
                         error_msg = response.get('message', 'Unknown error')
+                        errors_dict = response.get('errors', {})
                         self.db.save_order(order_id, None, 'failed', error_msg)
                         result['failed'] += 1
                         result['errors'].append(f"Order {order_id}: {error_msg}")
-                        logger.error(f"Order {order_id} upload failed: {error_msg}")
+                        logger.error(f"❌ Order {order_id} upload failed!")
+                        logger.error(f"   Message: {error_msg}")
+                        if errors_dict:
+                            for field, errors in errors_dict.items():
+                                logger.error(f"   {field}: {errors}")
                         
                 except Exception as e:
-                    logger.error(f"Error processing order {order.get('id')}: {str(e)}")
+                    order_id = order.get('id', 'UNKNOWN')
+                    logger.error(f"❌ ERROR processing order {order_id}: {str(e)}", exc_info=True)
                     result['failed'] += 1
-                    result['errors'].append(str(e))
+                    result['errors'].append(f"Order {order_id}: {str(e)}")
             
-            logger.info(f"Sync Complete - Fetched: {result['fetched']}, Uploaded: {result['uploaded']}, Failed: {result['failed']}")
+            logger.info(f"Sync Complete - Fetched: {result['fetched']}, Uploaded: {result['uploaded']}, Failed: {result['failed']}, Skipped: {result['skipped']}")
+            logger.info(f"========== SYNC END ==========")
             return result
             
         except Exception as e:
-            logger.error(f"Critical error during sync: {str(e)}")
+            logger.critical(f"CRITICAL ERROR during sync: {str(e)}", exc_info=True)
             raise
     
     def _get_state_full_name(self, state_code: str) -> str:
@@ -214,34 +224,77 @@ class EcwidShiprocketIntegrator:
         }
     
     def _transform_order(self, ecwid_order: Dict) -> Dict:
-        items = []
-        for product in ecwid_order.get('items', []):
-            items.append({
-                'name': product.get('name', 'Product'),
-                'sku': product.get('sku', ''),
-                'quantity': product.get('quantity', 1),
-                'selling_price': float(product.get('price', 0)),
-            })
-        
-        # Get billing info
-        billing = ecwid_order.get('billingPerson', {})
-        billing_name = billing.get('name', 'Customer').strip()
-        billing_phone = self._clean_phone(billing.get('phone', ''))
-        billing_address = billing.get('street', '').strip()
-        billing_city = billing.get('city', '').strip()
-        billing_state = self._get_state_full_name(billing.get('stateOrProvinceCode', ''))
-        billing_pincode = billing.get('postalCode', '').strip()
-        
-        # Get shipping info
-        shipping = ecwid_order.get('shippingPerson', billing)
-        shipping_name = shipping.get('name', 'Customer').strip()
-        shipping_phone = self._clean_phone(shipping.get('phone', ''))
-        shipping_address = shipping.get('street', '').strip()
-        shipping_city = shipping.get('city', '').strip()
-        shipping_state = self._get_state_full_name(shipping.get('stateOrProvinceCode', ''))
-        shipping_pincode = shipping.get('postalCode', '').strip()
-        
-        package_dims = self._calculate_package_dimensions(items)
+        try:
+            order_id = ecwid_order.get('id', 'UNKNOWN')
+            logger.info(f"[ORDER {order_id}] Starting transformation...")
+            
+            items = []
+            for idx, product in enumerate(ecwid_order.get('items', [])):
+                try:
+                    item = {
+                        'name': product.get('name', 'Product'),
+                        'sku': product.get('sku', ''),
+                        'units': product.get('quantity', 1),
+                        'selling_price': float(product.get('price', 0)),
+                    }
+                    items.append(item)
+                    logger.debug(f"[ORDER {order_id}] Item {idx}: {item['name']} x{item['units']} @ Rs.{item['selling_price']}")
+                except Exception as e:
+                    logger.error(f"[ORDER {order_id}] Error processing item {idx}: {str(e)}")
+                    raise
+            
+            # Get billing info
+            billing = ecwid_order.get('billingPerson', {})
+            billing_name = billing.get('name', 'Customer').strip()
+            billing_first_name = billing.get('firstName', 'Customer').strip()
+            billing_last_name = billing.get('lastName', 'Customer').strip()
+            billing_phone = self._clean_phone(billing.get('phone', ''))
+            billing_address = billing.get('street', '').strip()
+            billing_city = billing.get('city', '').strip()
+            billing_state = self._get_state_full_name(billing.get('stateOrProvinceCode', ''))
+            billing_pincode = billing.get('postalCode', '').strip()
+            
+            logger.debug(f"[ORDER {order_id}] Billing: {billing_name} ({billing_phone}) @ {billing_address}, {billing_city}, {billing_state} {billing_pincode}")
+            
+            # Validate billing info
+            if not billing_name or billing_name == 'Customer':
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing name is empty or default")
+            if not billing_phone:
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing phone is empty")
+            if not billing_address:
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing address is empty")
+            if not billing_city:
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing city is empty")
+            if not billing_state:
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing state is empty")
+            if not billing_pincode:
+                logger.warning(f"[ORDER {order_id}] WARNING: Billing pincode is empty")
+            
+            # Get shipping info
+            shipping = ecwid_order.get('shippingPerson', billing)
+            shipping_name = shipping.get('name', 'Customer').strip()
+            shipping_phone = self._clean_phone(shipping.get('phone', ''))
+            shipping_address = shipping.get('street', '').strip()
+            shipping_city = shipping.get('city', '').strip()
+            shipping_state = self._get_state_full_name(shipping.get('stateOrProvinceCode', ''))
+            shipping_pincode = shipping.get('postalCode', '').strip()
+            
+            logger.debug(f"[ORDER {order_id}] Shipping: {shipping_name} ({shipping_phone}) @ {shipping_address}, {shipping_city}, {shipping_state} {shipping_pincode}")
+            
+            # Check if shipping is same as billing
+            shipping_is_billing = (
+                billing_address == shipping_address and
+                billing_city == shipping_city and
+                billing_pincode == shipping_pincode and
+                billing_state == shipping_state
+            )
+            logger.debug(f"[ORDER {order_id}] Shipping is billing: {shipping_is_billing}")
+            
+            package_dims = self._calculate_package_dimensions(items)
+            
+        except Exception as e:
+            logger.error(f"[ORDER {order_id}] ERROR during field extraction: {str(e)}", exc_info=True)
+            raise
         
         # Get first product for SKU and name
         first_item = items[0] if items else {'name': 'Product', 'sku': 'SKU', 'quantity': 1, 'selling_price': 0}
@@ -253,7 +306,10 @@ class EcwidShiprocketIntegrator:
             'pickup_location_id': int(self.config.shiprocket_pickup_location_id),
             'channel_id': int(self.config.shiprocket_channel_id),
             'payment_method': 'Prepaid',
+            'shipping_is_billing': shipping_is_billing,
             'billing_customer_name': billing_name,
+            'billing_first_name': billing_first_name,
+            'billing_last_name': billing_last_name,
             'billing_email': ecwid_order.get('email', '').strip(),
             'billing_phone': billing_phone,
             'billing_address': billing_address,
