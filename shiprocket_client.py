@@ -44,10 +44,10 @@ class ShiprocketClient:
             self.token = data.get('token')
             
             if self.token:
-                logger.info("✓ Shiprocket authentication successful")
+                logger.info("Shiprocket authentication successful")
                 return True
             else:
-                logger.error("✗ Failed to get authentication token from Shiprocket")
+                logger.error("Failed to get authentication token from Shiprocket")
                 return False
                 
         except requests.exceptions.RequestException as e:
@@ -136,22 +136,32 @@ class ShiprocketClient:
         )
         
         if response.get('success'):
-            logger.info(f"✓ Order created successfully. Shiprocket Order ID: {response.get('order_id')}")
+            logger.info(f"Order created successfully. Shiprocket Order ID: {response.get('order_id')}")
         else:
-            logger.warning(f"✗ Order creation failed: {response.get('message')}")
+            logger.warning(f"Order creation failed: {response.get('message')}")
         
         return response
     
     def test_connection(self) -> bool:
         """Test API connection"""
         try:
+            logger.info("Testing Shiprocket connection...")
+            # Try a simple endpoint that should work
             response = self._make_request('GET', '/settings/company/profile')
-            if response.get('success') or 'company_name' in response:
-                logger.info("✓ Shiprocket API connection successful")
+            
+            if response.get('success'):
+                logger.info("Shiprocket API connection successful")
                 return True
+            elif response.get('errors'):
+                logger.error(f"Shiprocket API error: {response.get('errors')}")
+                return False
             else:
-                logger.error("✗ Shiprocket API connection failed")
+                # If we get data back without 'success' key, it's still working
+                if response and not response.get('message', '').startswith('failed'):
+                    logger.info("Shiprocket API connection successful")
+                    return True
+                logger.error("Shiprocket API connection failed")
                 return False
         except Exception as e:
-            logger.error(f"✗ Shiprocket API connection error: {str(e)}")
+            logger.error(f"Shiprocket API connection error: {str(e)}")
             return False
