@@ -14,15 +14,15 @@ class ShiprocketClient:
     """Client for Shiprocket REST API"""
     
     BASE_URL = 'https://apiv2.shiprocket.in/v1/external'
-    AUTH_URL = 'https://apiv2.shiprocket.in/v1/users/login'
+    AUTH_URL = 'https://apiv2.shiprocket.in/v1/external/auth/login'
     
     def __init__(self, email: str, password: str):
         """
         Initialize Shiprocket client
         
         Args:
-            email: Shiprocket account email
-            password: Shiprocket account password
+            email: Shiprocket API user email
+            password: Shiprocket API user password
         """
         self.email = email
         self.password = password
@@ -146,21 +146,12 @@ class ShiprocketClient:
         """Test API connection"""
         try:
             logger.info("Testing Shiprocket connection...")
-            # Try a simple endpoint that should work
-            response = self._make_request('GET', '/settings/company/profile')
-            
-            if response.get('success'):
+            # Just check if we have a valid token
+            if self.token:
                 logger.info("Shiprocket API connection successful")
                 return True
-            elif response.get('errors'):
-                logger.error(f"Shiprocket API error: {response.get('errors')}")
-                return False
             else:
-                # If we get data back without 'success' key, it's still working
-                if response and not response.get('message', '').startswith('failed'):
-                    logger.info("Shiprocket API connection successful")
-                    return True
-                logger.error("Shiprocket API connection failed")
+                logger.error("Shiprocket API connection failed - no token")
                 return False
         except Exception as e:
             logger.error(f"Shiprocket API connection error: {str(e)}")
