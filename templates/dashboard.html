@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecwid → Shiprocket Integration</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { text-align: center; color: white; margin-bottom: 30px; }
+        header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+        .card-title { color: #667eea; font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; font-weight: 600; }
+        .card-value { font-size: 2.5em; font-weight: 700; color: #333; margin-bottom: 10px; }
+        .actions { background: white; border-radius: 12px; padding: 25px; margin-bottom: 30px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+        .action-buttons { display: flex; gap: 15px; flex-wrap: wrap; }
+        button { flex: 1; min-width: 200px; padding: 12px 25px; border: none; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .alert { padding: 15px 20px; border-radius: 8px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
+        .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        .alert-error { background: #fee2e2; color: #7f1d1d; border: 1px solid #fca5a5; }
+        .status-section { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); }
+        .status-list { display: flex; flex-direction: column; gap: 15px; }
+        .status-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9fafb; border-radius: 8px; border-left: 4px solid #667eea; }
+        .status-item-value { font-size: 1.5em; font-weight: 700; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔄 Ecwid → Shiprocket</h1>
+            <p>Order Integration Dashboard</p>
+        </header>
+
+        <div id="alerts"></div>
+
+        <div class="dashboard">
+            <div class="card">
+                <div class="card-title">Total Orders</div>
+                <div class="card-value" id="totalOrders">-</div>
+            </div>
+            <div class="card">
+                <div class="card-title">✓ Successful</div>
+                <div class="card-value" id="successfulOrders" style="color: #10b981;">-</div>
+            </div>
+            <div class="card">
+                <div class="card-title">✗ Failed</div>
+                <div class="card-value" id="failedOrders" style="color: #ef4444;">-</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <h2>Sync Operations</h2>
+            <div style="margin-bottom: 15px;">
+                <label>Look back (hours):</label>
+                <input type="number" id="hoursInput" min="1" max="720" value="24" style="padding: 8px; margin-left: 10px; width: 80px;">
+            </div>
+            <div class="action-buttons">
+                <button class="btn-primary" onclick="startSync()">🚀 Start Sync</button>
+                <button class="btn-secondary" onclick="retryFailed()">🔁 Retry Failed</button>
+                <button class="btn-secondary" onclick="testConnection()">🧪 Test Connection</button>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <h2>Status</h2>
+            <div class="status-list" id="statusList">
+                <p style="text-align: center; color: #999;">Loading status...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isProcessing = false;
+
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                document.getElementById('totalOrders').textContent = status.total_orders || 0;
+                document.getElementById('successfulOrders').textContent = status.successful || 0;
+                document.getElementById('failedOrders').textContent = status.failed || 0;
+                
+                const list = document.getElementById('statusList');
+                list.innerHTML = `
+                    <div class="status-item">
+                        <div>Total Orders</div>
+                        <div class="status-item-value">${status.total_orders || 0}</div>
+                    </div>
+                    <div class="status-item">
+                        <div>Successfully Uploaded</div>
+                        <div class="status-item-value">${status.successful || 0}</div>
+                    </div>
+                    <div class="status-item">
+                        <div>Failed</div>
+                        <div class="status-item-value">${status.failed || 0}</div>
+                    </div>
+                    <div class="status-item">
+                        <div>Last Sync</div>
+                        <div class="status-item-value">${status.last_sync || 'Never'}</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function startSync() {
+            if (isProcessing) return;
+            isProcessing = true;
+            const button = document.querySelector('.btn-primary');
+            button.disabled = true;
+            const hours = parseInt(document.getElementById('hoursInput').value);
+            
+            try {
+                const response = await fetch('/api/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hours, force: false })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    const data = result.data;
+                    showAlert(`Fetched: ${data.fetched}, Uploaded: ${data.uploaded}, Failed: ${data.failed}`, 'success');
+                } else {
+                    showAlert('Sync failed: ' + result.error, 'error');
+                }
+                refreshStatus();
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'error');
+            } finally {
+                isProcessing = false;
+                button.disabled = false;
+            }
+        }
+
+        async function retryFailed() {
+            if (isProcessing) return;
+            isProcessing = true;
+            const button = document.querySelectorAll('.btn-secondary')[0];
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/api/retry', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert(`Fixed: ${result.data.fixed}, Still failing: ${result.data.still_failed}`, 'success');
+                } else {
+                    showAlert('Retry failed', 'error');
+                }
+                refreshStatus();
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'error');
+            } finally {
+                isProcessing = false;
+                button.disabled = false;
+            }
+        }
+
+        async function testConnection() {
+            const button = document.querySelectorAll('.btn-secondary')[1];
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/api/test-connection', { method: 'POST' });
+                const result = await response.json();
+                if (result.all_ok) {
+                    showAlert('✓ All connections successful!', 'success');
+                } else {
+                    showAlert(`Ecwid: ${result.ecwid ? '✓' : '✗'}, Shiprocket: ${result.shiprocket ? '✓' : '✗'}`, 'error');
+                }
+            } catch (error) {
+                showAlert('Error: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        function showAlert(message, type) {
+            const alertsDiv = document.getElementById('alerts');
+            const alertEl = document.createElement('div');
+            alertEl.className = `alert alert-${type}`;
+            alertEl.textContent = message;
+            alertsDiv.appendChild(alertEl);
+            setTimeout(() => { alertEl.remove(); }, 5000);
+        }
+
+        refreshStatus();
+        setInterval(refreshStatus, 30000);
+    </script>
+</body>
+</html>
