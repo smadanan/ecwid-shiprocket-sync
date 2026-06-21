@@ -343,6 +343,9 @@
             <button class="btn btn-primary" id="syncBtn" onclick="startSync()">
                 <span id="syncBtnText">🚀 Start Sync (24h)</span>
             </button>
+            <button class="btn btn-secondary" id="forceSyncBtn" onclick="startForceSync()">
+                ⚡ Force Sync (Re-upload All)
+            </button>
             <button class="btn btn-secondary" id="retryBtn" onclick="retryFailed()">
                 🔁 Retry Failed Orders
             </button>
@@ -363,8 +366,8 @@
     </div>
     
     <script>
-        // Auto-refresh logs every 2 seconds
-        setInterval(refreshLogs, 2000);
+        // Logs only refresh when buttons are clicked, not automatically
+        // setInterval(refreshLogs, 2000);
         
         // Check connection on load
         window.addEventListener('load', function() {
@@ -427,7 +430,7 @@
                 .then(data => {
                     if (data.success) {
                         const summary = data.summary;
-                        showAlert(`✅ Sync Complete! Fetched: ${summary.fetched}, Uploaded: ${summary.uploaded}, Failed: ${summary.failed}`, 'success');
+                        showAlert(`✅ Sync Complete! Fetched: ${summary.fetched}, Uploaded: ${summary.uploaded}, Skipped: ${summary.skipped}, Failed: ${summary.failed}`, 'success');
                         if (data.errors && data.errors.length > 0) {
                             showAlert(`⚠️ Errors: ${data.errors.join('; ')}`, 'error');
                         }
@@ -443,6 +446,43 @@
                 .finally(() => {
                     btn.disabled = false;
                     btn.innerHTML = '<span>🚀 Start Sync (24h)</span>';
+                });
+        }
+        
+        function startForceSync() {
+            if (!confirm('⚠️ FORCE SYNC will re-upload ALL orders, even ones already uploaded.\n\nAre you sure?')) {
+                return;
+            }
+            
+            const btn = document.getElementById('forceSyncBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Force Syncing...';
+            
+            fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hours: 240, force: true })
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const summary = data.summary;
+                        showAlert(`✅ Force Sync Complete! Fetched: ${summary.fetched}, Uploaded: ${summary.uploaded}, Failed: ${summary.failed}`, 'success');
+                        if (data.errors && data.errors.length > 0) {
+                            showAlert(`⚠️ Errors: ${data.errors.join('; ')}`, 'error');
+                        }
+                    } else {
+                        showAlert(`❌ Sync Failed: ${data.error}`, 'error');
+                    }
+                    refreshStats();
+                    refreshLogs();
+                })
+                .catch(e => {
+                    showAlert(`❌ Error: ${e.message}`, 'error');
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>⚡ Force Sync (Re-upload All)</span>';
                 });
         }
         
